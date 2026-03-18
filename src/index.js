@@ -6,6 +6,17 @@ const fs = require('fs');
 const path = require('path');
 const { startAlertPoller } = require('./jobs/alertPoller');
 
+const http = require("http");
+
+const PORT = process.env.PORT || 8080;
+
+http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end("Showtime Quickinfo running");
+}).listen(PORT, () => {
+  console.log(`Health server running on port ${PORT}`);
+});
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
