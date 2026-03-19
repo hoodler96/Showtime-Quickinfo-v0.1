@@ -12,6 +12,7 @@ async function getQuote(symbol) {
       headers: YAHOO_HEADERS,
     });
 
+    console.log('Yahoo raw response:', JSON.stringify(res.data));
     const quote = res.data?.quoteResponse?.result?.[0];
     if (!quote) return null;
 
