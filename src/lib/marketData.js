@@ -1,69 +1,80 @@
 const axios = require('axios');
 
-const YAHOO_HEADERS = {
-  'User-Agent': 'Mozilla/5.0',
-  'Accept': 'application/json',
-};
+const BASE = 'https://api.polygon.io';
 
+// =======================
+// STOCK PRICE
+// =======================
 async function getQuote(symbol) {
   try {
-    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`;
-    const res = await axios.get(url, {
-      headers: YAHOO_HEADERS,
-    });
+    const url = `${BASE}/v2/aggs/ticker/${symbol}/prev?apiKey=${process.env.POLYGON_API_KEY}`;
+    const res = await axios.get(url);
 
-    console.log('Yahoo raw response:', JSON.stringify(res.data));
-    const quote = res.data?.quoteResponse?.result?.[0];
-    if (!quote) return null;
+    const data = res.data?.results?.[0];
+    if (!data) return null;
 
     return {
-      symbol: quote.symbol,
-      price: quote.regularMarketPrice,
-      change: quote.regularMarketChange,
-      percent: quote.regularMarketChangePercent,
-      timestamp: new Date().toISOString(),
+      symbol,
+      price: data.c,
+      open: data.o,
+      high: data.h,
+      low: data.l,
+      volume: data.v,
     };
   } catch (err) {
-    console.error('Yahoo quote error:', err.response?.data || err.message);
+    console.error('Polygon quote error:', err.response?.data || err.message);
     return null;
   }
 }
 
+// =======================
+// OPTIONS CHAIN
+// =======================
 async function getOptionChain(symbol) {
   try {
-    const url = `https://query2.finance.yahoo.com/v7/finance/options/${encodeURIComponent(symbol)}`;
-    const res = await axios.get(url, {
-      headers: YAHOO_HEADERS,
-    });
+    const url = `${BASE}/v3/reference/options/contracts?underlying_ticker=${symbol}&limit=50&apiKey=${process.env.POLYGON_API_KEY}`;
+    const res = await axios.get(url);
 
-    const chain = res.data?.optionChain?.result?.[0];
-    if (!chain) return null;
-
-    return chain;
+    return res.data?.results || null;
   } catch (err) {
-    console.error('Yahoo chain error:', err.response?.data || err.message);
+    console.error('Polygon chain error:', err.response?.data || err.message);
     return null;
   }
 }
 
-function findContract(chain, strike, type) {
-  const options = chain.options?.[0];
-  if (!options) return null;
+// =======================
+// FIND CONTRACT
+// =======================
+function findContract(contracts, strike, type) {
+  if (!contracts) return null;
 
-  const list = type === 'put' ? options.puts : options.calls;
-  if (!Array.isArray(list)) return null;
-
-  return list.find(c => Number(c.strike) === Number(strike)) || null;
+  return contracts.find(c =>
+    Number(c.strike_price) === Number(strike) &&
+    c.contract_type === type
+  );
 }
 
+// =======================
+// OPTION SNAPSHOT (PRICE + GREEKS)
+// =======================
 async function getOptionSnapshot(symbol, strike, type) {
-  const chain = await getOptionChain(symbol);
-  if (!chain) return null;
+  try {
+    const chain = await getOptionChain(symbol);
+    if (!chain) return null;
 
-  const contract = findContract(chain, strike, type);
-  if (!contract) return null;
+    const contract = findContract(chain, strike, type);
+    if (!contract) return null;
 
-  return contract;
+    const ticker = contract.ticker;
+
+    const url = `${BASE}/v3/snapshot/options/${symbol}/${ticker}?apiKey=${process.env.POLYGON_API_KEY}`;
+    const res = await axios.get(url);
+
+    return res.data?.results || null;
+  } catch (err) {
+    console.error('Polygon snapshot error:', err.response?.data || err.message);
+    return null;
+  }
 }
 
 module.exports = {
