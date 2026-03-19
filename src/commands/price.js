@@ -4,34 +4,30 @@ const { getQuote } = require('../lib/marketData');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('price')
-    .setDescription('Get the latest price for a ticker')
-    .addStringOption(option =>
-      option
-        .setName('symbol')
-        .setDescription('Ticker symbol, e.g. SPY')
+    .setDescription('Get stock price')
+    .addStringOption(opt =>
+      opt.setName('symbol')
+        .setDescription('Ticker (ex: SPY)')
         .setRequired(true)
     ),
 
   async execute(interaction) {
     const symbol = interaction.options.getString('symbol').toUpperCase();
+
     await interaction.deferReply();
 
-    try {
-      const quote = await getQuote(symbol);
+    const quote = await getQuote(symbol);
 
-      if (!quote) {
-        return interaction.editReply(`No quote found for **${symbol}**.`);
-      }
-
-      return interaction.editReply([
-        `**${quote.symbol}**`,
-        `Price: ${quote.price ?? 'n/a'}`,
-        `Change: ${quote.change ?? 'n/a'} (${quote.percent ?? 'n/a'}%)`,
-        `As of: ${quote.timestamp ?? 'n/a'}`,
-      ].join('\n'));
-    } catch (err) {
-      console.error('price command error:', err);
-      return interaction.editReply('Failed to fetch price data.');
+    if (!quote) {
+      return interaction.editReply(`No data found for ${symbol}`);
     }
-  },
+
+    return interaction.editReply(
+      `📊 ${symbol}\n` +
+      `Price: $${quote.price}\n` +
+      `High: $${quote.high}\n` +
+      `Low: $${quote.low}\n` +
+      `Volume: ${quote.volume}`
+    );
+  }
 };
