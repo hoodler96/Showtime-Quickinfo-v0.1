@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
-const { askQuickinfo } = require('../lib/openai');
+const { askQuickinfo } = require('../lib/ai');
 
 module.exports = {
   data: new SlashCommandBuilder()
