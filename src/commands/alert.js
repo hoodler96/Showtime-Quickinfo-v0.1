@@ -1,6 +1,15 @@
 const { SlashCommandBuilder } = require('discord.js');
 const Alert = require('../models/Alert');
 
+function formatPrice(value) {
+  const number = Number(value);
+  if (Number.isNaN(number)) return String(value);
+  return number.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('alert')
@@ -19,7 +28,7 @@ module.exports = {
     .addStringOption(option =>
       option
         .setName('symbol')
-        .setDescription('Ticker symbol, e.g. SPY')
+        .setDescription('Ticker symbol, e.g. SPY, QQQ, TSLA')
         .setRequired(false)
     )
     .addStringOption(option =>
@@ -37,13 +46,20 @@ module.exports = {
         .setName('target')
         .setDescription('Target price')
         .setRequired(false)
+    )
+    .addStringOption(option =>
+      option
+        .setName('note')
+        .setDescription('Optional note, e.g. Watch 680 breakout')
+        .setRequired(false)
     ),
 
   async execute(interaction) {
     const action = interaction.options.getString('action');
-    const symbol = interaction.options.getString('symbol')?.toUpperCase();
+    const symbol = interaction.options.getString('symbol')?.trim().toUpperCase();
     const condition = interaction.options.getString('condition');
     const target = interaction.options.getNumber('target');
+    const note = interaction.options.getString('note')?.trim() || null;
 
     if (action === 'list') {
       const alerts = await Alert.find({
@@ -52,22 +68,29 @@ module.exports = {
       }).sort({ createdAt: -1 });
 
       if (!alerts.length) {
-        return interaction.reply('No active alerts.');
+        return interaction.reply({
+          content: `No active alerts for <@${interaction.user.id}>.`,
+          allowedMentions: { users: [interaction.user.id] },
+        });
       }
 
-      const lines = alerts.map(a =>
-        `${a.symbol} ${a.condition} ${a.target}`
-      );
+      const lines = alerts.map((a, index) => {
+        const base = `${index + 1}. **${a.symbol}** ${a.condition} **${formatPrice(a.target)}**`;
+        return a.note ? `${base} — ${a.note}` : base;
+      });
 
-      return interaction.reply([
-        `**Active alerts for <@${interaction.user.id}>**`,
-        ...lines,
-      ].join('\n'));
+      return interaction.reply({
+        content: [
+          `**Active alerts for <@${interaction.user.id}>**`,
+          ...lines,
+        ].join('\n'),
+        allowedMentions: { users: [interaction.user.id] },
+      });
     }
 
     if (!symbol) {
       return interaction.reply({
-        content: 'You need to provide a symbol.',
+        content: 'You need to provide a ticker symbol.',
         ephemeral: true,
       });
     }
@@ -76,6 +99,13 @@ module.exports = {
       if (!condition || target == null) {
         return interaction.reply({
           content: 'For create, you need symbol, condition, and target.',
+          ephemeral: true,
+        });
+      }
+
+      if (target <= 0) {
+        return interaction.reply({
+          content: 'Target price must be greater than 0.',
           ephemeral: true,
         });
       }
@@ -90,7 +120,7 @@ module.exports = {
 
       if (existing) {
         return interaction.reply({
-          content: `You already have an active alert for ${symbol} ${condition} ${target}.`,
+          content: `You already have an active alert for **${symbol}** ${condition} **${formatPrice(target)}**.`,
           ephemeral: true,
         });
       }
@@ -104,12 +134,18 @@ module.exports = {
         field: 'price',
         condition,
         target,
+        note,
         isActive: true,
       });
 
-      return interaction.reply(
-        `✅ <@${interaction.user.id}> alert created for **${symbol}** ${condition} **${target}**.`
-      );
+      return interaction.reply({
+        content: [
+          `✅ <@${interaction.user.id}> alert created.`,
+          `**${symbol}** ${condition} **${formatPrice(target)}**`,
+          note ? `Note: ${note}` : null,
+        ].filter(Boolean).join('\n'),
+        allowedMentions: { users: [interaction.user.id] },
+      });
     }
 
     if (action === 'delete') {
@@ -125,14 +161,16 @@ module.exports = {
       );
 
       if (!result.modifiedCount) {
-        return interaction.reply(
-          `❌ <@${interaction.user.id}> no active alerts found for **${symbol}**.`
-        );
+        return interaction.reply({
+          content: `❌ <@${interaction.user.id}> no active alerts found for **${symbol}**.`,
+          allowedMentions: { users: [interaction.user.id] },
+        });
       }
 
-      return interaction.reply(
-        `🗑️ <@${interaction.user.id}> cancelled ${result.modifiedCount} active alert(s) for **${symbol}**.`
-      );
+      return interaction.reply({
+        content: `🗑️ <@${interaction.user.id}> cancelled ${result.modifiedCount} active alert(s) for **${symbol}**.`,
+        allowedMentions: { users: [interaction.user.id] },
+      });
     }
 
     return interaction.reply({
