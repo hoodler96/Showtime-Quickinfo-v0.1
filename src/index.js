@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
 const { startAlertPoller } = require('./jobs/alertPoller');
+const startAlertPoller = require('./jobs/alertPoller');
 
 const http = require("http");
 
