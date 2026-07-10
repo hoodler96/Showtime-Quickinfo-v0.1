@@ -54,9 +54,10 @@ for (const file of eventFiles) {
 async function bootstrap() {
   await mongoose.connect(process.env.MONGODB_URI);
   console.log('Mongo connected');
+  startAlertPoller(client);
 
   await client.login(process.env.DISCORD_TOKEN);
-  startAlertPoller(client);
+  (client);
 }
 
 bootstrap().catch(err => {
